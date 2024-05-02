@@ -50,10 +50,10 @@ class Connect4Model(nn.Module):
 
         return policy.data.cpu().numpy()[0], value.data.cpu().numpy()[0]
 
-    def select_action(self, board):
+    def select_action(self, board, game):
         policy, _ = self.predict(board)
 
-        legal_moves = [board[i] == 0 for i in range(len(board))]
+        legal_moves = game.get_valid_moves(board)
         policy = policy * legal_moves
         policy = policy / np.sum(policy)
 
