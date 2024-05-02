@@ -141,9 +141,6 @@ class Trainer:
             print()
             print("Policy Loss", np.mean(pi_losses))
             print("Value Loss", np.mean(v_losses))
-            print("Examples:")
-            print(out_pi[0].detach())
-            print(target_pis[0])
 
     def loss_pi(self, targets, outputs):
         loss = -(targets * torch.log(outputs)).sum(dim=1)
@@ -158,6 +155,7 @@ class Trainer:
             os.mkdir(folder)
 
         filepath = os.path.join(folder, filename)
+        print(f"SAVING MODEL TO {filepath}")
         torch.save(
             {
                 "state_dict": self.model.state_dict(),

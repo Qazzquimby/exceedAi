@@ -9,8 +9,8 @@ from trainer import Trainer, load_checkpoint
 
 args = {
     "batch_size": 16,  # 64,
-    "numIters": 500,  # Total number of training iterations
-    "num_simulations": 20,  # Total number of MCTS simulations to run when deciding on a move to play
+    "numIters": 2500,  # Total number of training iterations
+    "num_simulations": 40,  # Total number of MCTS simulations to run when deciding on a move to play
     "numEps": 20,  # Number of full games (episodes) to run during each iteration
     "epochs": 2,  # Number of epochs of training per iteration
     # "checkpoint_path": "latest.pth",  # location to save latest set of weights

@@ -65,3 +65,9 @@ misunderstanding was thinking that the output vector was targeted to the current
 vector is the model's global preferences for many things. How much they want to gain a platinum, how
 much they want to trash a platinum, or how much they want to trash a platinum for benefit - all
 whether there are platinums in the current game.
+
+Nope thats wrong. The output is a single vector for each major type of action (trash, buy, discard,
+play).
+Early in the tree, each card gets an embedding. Each copy of each card in the game gets an encoded
+card containing its embedding, location, etc.
+This is combined with game knowledge for players and the gamestate to get 
