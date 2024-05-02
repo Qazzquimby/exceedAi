@@ -95,6 +95,16 @@ class Node:
         )
 
 
+def backpropagate(search_path, value, to_play):
+    """
+    At the end of a simulation, we propagate the evaluation all the way up the tree
+    to the root.
+    """
+    for node in reversed(search_path):
+        node.value_sum += value if node.to_play == to_play else -value
+        node.visit_count += 1
+
+
 class MCTS:
 
     def __init__(self, game, model, args):
@@ -108,9 +118,7 @@ class MCTS:
 
         # EXPAND root
         action_probs, value = model.predict(state)
-        valid_moves = self.game.get_valid_moves(state)
-        action_probs = action_probs * valid_moves  # mask invalid moves
-        action_probs /= np.sum(action_probs)
+        action_probs = self.game.mask_invalid_moves(state, action_probs)
         root.expand(state, to_play, action_probs)
 
         for _ in range(self.args["num_simulations"]):
@@ -118,13 +126,15 @@ class MCTS:
             search_path = [node]
 
             # SELECT
+            action = None
             while node.expanded():
                 action, node = node.select_child()
                 search_path.append(node)
+            assert action is not None
 
             parent = search_path[-2]
             state = parent.state
-            # Now we're at a leaf node and we would like to expand
+            # Now we're at a leaf node, and we would like to expand
             # Players always play from their own perspective
             next_state, _ = self.game.get_next_state(state, player=1, action=action)
             # Get the board from the perspective of the other player
@@ -137,22 +147,12 @@ class MCTS:
 
             if value is None:
                 # If the game has not ended:
-                # EXPAND # todo duplicate code here
                 action_probs, value = model.predict(next_state)
-                valid_moves = self.game.get_valid_moves(next_state)
-                action_probs = action_probs * valid_moves  # mask invalid moves
-                action_probs /= np.sum(action_probs)
+                action_probs = self.game.mask_invalid_moves(
+                    state=next_state, action_probs=action_probs
+                )
                 node.expand(next_state, parent.to_play * -1, action_probs)
 
-            self.backpropagate(search_path, value, parent.to_play * -1)
+            backpropagate(search_path, value, parent.to_play * -1)
 
         return root
-
-    def backpropagate(self, search_path, value, to_play):
-        """
-        At the end of a simulation, we propagate the evaluation all the way up the tree
-        to the root.
-        """
-        for node in reversed(search_path):
-            node.value_sum += value if node.to_play == to_play else -value
-            node.visit_count += 1

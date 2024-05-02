@@ -4,7 +4,9 @@ from random import shuffle
 
 import torch
 import torch.optim as optim
+from tqdm import tqdm
 
+from core import device
 from monte_carlo_tree_search import MCTS
 
 
@@ -33,11 +35,10 @@ class Trainer:
 
             action_probs = [0 for _ in range(self.game.get_action_size())]
             for k, v in root.children.items():
-                action_probs[k] = (
-                    v.visit_count
-                )  # you use highest visit count, not value, because a node visited few times could have a very inaccurate value.
+                action_probs[k] = v.visit_count
+                # you use highest visit count, not value, because a node visited few times could have a very inaccurate value.
 
-            action_probs = action_probs / np.sum(action_probs)
+            action_probs /= np.sum(action_probs)
             train_examples.append(
                 (board_from_current_player_perspective, current_player, action_probs)
             )
@@ -63,17 +64,22 @@ class Trainer:
                             reward * ((-1) ** (hist_current_player != current_player)),
                         )
                     )
+                    # TODO the hell is this reward signal?
 
                 return ret
 
     def learn(self):
-        for i in range(1, self.args["numIters"] + 1):
-
-            print("{}/{}".format(i, self.args["numIters"]))
-
+        for _iteration in tqdm(
+            range(1, self.args["numIters"] + 1),
+            desc="Iteration",
+            position=0,
+            leave=False,
+        ):
             train_examples = []
 
-            for eps in range(self.args["numEps"]):
+            for _episode in tqdm(
+                range(self.args["numEps"]), desc="Episode", position=1, leave=False
+            ):
                 iteration_train_examples = self.execute_episode()
                 train_examples.extend(iteration_train_examples)
 
@@ -105,6 +111,10 @@ class Trainer:
                 boards = boards.contiguous()  # .cuda()
                 target_pis = target_pis.contiguous()  # .cuda()
                 target_vs = target_vs.contiguous()  # .cuda()
+                if device.type == "cuda":
+                    boards = boards.cuda()
+                    target_pis = target_pis.cuda()
+                    target_vs = target_vs.cuda()
 
                 # compute output
                 out_pi, out_v = self.model(boards)
