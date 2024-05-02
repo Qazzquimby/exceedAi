@@ -8,11 +8,10 @@ from core import device
 from trainer import Trainer, load_checkpoint
 
 args = {
-    "batch_size": 64,
+    "batch_size": 16,  # 64,
     "numIters": 500,  # Total number of training iterations
-    "num_simulations": 100,  # Total number of MCTS simulations to run when deciding on a move to play
-    "numEps": 100,  # Number of full games (episodes) to run during each iteration
-    "numItersForTrainExamplesHistory": 20,
+    "num_simulations": 20,  # Total number of MCTS simulations to run when deciding on a move to play
+    "numEps": 20,  # Number of full games (episodes) to run during each iteration
     "epochs": 2,  # Number of epochs of training per iteration
     # "checkpoint_path": "latest.pth",  # location to save latest set of weights
 }
@@ -41,6 +40,12 @@ def get_connect_4_game_model_path():
 def train():
     # game, model = get_connect_2_game_model_path()
     game, model = get_connect_4_game_model_path()
+    try:
+        model = load_checkpoint(
+            model=model, folder=".", filename=args["checkpoint_path"]
+        )
+    except FileNotFoundError:
+        pass
     trainer = Trainer(game, model, args)
     trainer.learn()
 
