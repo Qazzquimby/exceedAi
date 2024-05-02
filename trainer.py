@@ -6,7 +6,7 @@ import torch
 import torch.optim as optim
 from tqdm import tqdm
 
-from core import device
+from core import device, checkpoints_dir
 from monte_carlo_tree_search import MCTS
 
 
@@ -17,6 +17,9 @@ class Trainer:
         self.model = model
         self.args = args
         self.mcts = MCTS(self.game, self.model, self.args)
+
+        self.best_loss = float("inf")
+        self.best_epoch = 0
 
     def execute_episode(self):
         train_examples = []
@@ -73,7 +76,7 @@ class Trainer:
                 return ret
 
     def learn(self):
-        for _iteration in tqdm(
+        for iteration in tqdm(
             range(1, self.args["numIters"] + 1),
             desc="Iteration",
             position=0,
@@ -88,14 +91,35 @@ class Trainer:
                 train_examples.extend(iteration_train_examples)
 
             shuffle(train_examples)
-            self.train(train_examples)
-            filename = self.args["checkpoint_path"]
-            self.save_checkpoint(folder=".", filename=filename)
+            current_loss = self.train(train_examples)
+
+            if torch.isnan(current_loss):
+                print("Loss is NaN. Rolling back.")
+                self.load_checkpoint(
+                    filename=self.args["checkpoint_path"], suffix="latest"
+                )
+
+            if current_loss < self.best_loss:
+                diff = self.best_loss - current_loss
+                self.best_loss = current_loss
+                self.best_iter = iteration
+
+                self.save_checkpoint(
+                    filename=self.args["checkpoint_path"],
+                    suffix=f"best_model_{iteration}",
+                )
+                print(
+                    f"Iter {iteration}: New best model saved with loss {self.best_loss:.4f}. Improved by {diff:.4f}"
+                )
+
+            self.save_checkpoint(filename=self.args["checkpoint_path"], suffix="latest")
 
     def train(self, examples):
         optimizer = optim.Adam(self.model.parameters(), lr=5e-4)
         pi_losses = []
         v_losses = []
+
+        total_loss = None
 
         for _epoch in tqdm(
             range(self.args["epochs"]), desc="Epoch", position=2, leave=False
@@ -141,6 +165,7 @@ class Trainer:
             print()
             print("Policy Loss", np.mean(pi_losses))
             print("Value Loss", np.mean(v_losses))
+        return total_loss
 
     def loss_pi(self, targets, outputs):
         loss = -(targets * torch.log(outputs)).sum(dim=1)
@@ -150,12 +175,12 @@ class Trainer:
         loss = torch.sum((targets - outputs.view(-1)) ** 2) / targets.size()[0]
         return loss
 
-    def save_checkpoint(self, folder, filename):
-        if not os.path.exists(folder):
-            os.mkdir(folder)
+    def save_checkpoint(self, filename, suffix=None):
+        if suffix is not None:
+            filename = f"{filename}_{suffix}"
+        checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-        filepath = os.path.join(folder, filename)
-        print(f"SAVING MODEL TO {filepath}")
+        filepath = f"{checkpoints_dir / filename}.pth"
         torch.save(
             {
                 "state_dict": self.model.state_dict(),
@@ -163,12 +188,15 @@ class Trainer:
             filepath,
         )
 
-    def load_checkpoint(self, folder, filename):
-        self.model = load_checkpoint(model=self.model, folder=folder, filename=filename)
+    def load_checkpoint(self, filename, suffix=None):
+        self.model = load_checkpoint(model=self.model, filename=filename, suffix=suffix)
 
 
-def load_checkpoint(model, folder, filename):
-    filepath = os.path.join(folder, filename)
+def load_checkpoint(model, filename, suffix=None):
+    if suffix is not None:
+        filename = f"{filename}_{suffix}"
+    filepath = f"{checkpoints_dir / filename}.pth"
+    print(f"LOADING {filepath}")
     checkpoint = torch.load(filepath)
 
     model.load_state_dict(checkpoint["state_dict"])

@@ -1,10 +1,13 @@
 import abc
+from pathlib import Path
 
 import numpy as np
 import torch
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device {device}")
+
+checkpoints_dir = Path("checkpoints")
 
 
 class Game(abc.ABC):

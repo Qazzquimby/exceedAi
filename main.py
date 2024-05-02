@@ -23,7 +23,7 @@ def get_connect_2_game_model_path():
     action_size = game.get_action_size()
 
     model = Connect2Model(board_size, action_size, device)
-    args["checkpoint_path"] = "connect2.pth"
+    args["checkpoint_path"] = "connect2"
     return game, model
 
 
@@ -33,17 +33,15 @@ def get_connect_4_game_model_path():
     action_size = game.get_action_size()
 
     model = Connect4Model(board_size, action_size, device)
-    args["checkpoint_path"] = "connect4.pth"
+    args["checkpoint_path"] = "connect4"
     return game, model
 
 
 def train():
-    # game, model = get_connect_2_game_model_path()
-    game, model = get_connect_4_game_model_path()
+    game, model = get_connect_2_game_model_path()
+    # game, model = get_connect_4_game_model_path()
     try:
-        model = load_checkpoint(
-            model=model, folder=".", filename=args["checkpoint_path"]
-        )
+        model = load_checkpoint(model=model, filename=args["checkpoint_path"])
     except FileNotFoundError:
         pass
     trainer = Trainer(game, model, args)
@@ -51,14 +49,16 @@ def train():
 
 
 def watch():
-    # game, model = get_connect_2_game_model_path()
-    game, model = get_connect_4_game_model_path()
+    game, model = get_connect_2_game_model_path()
+    # game, model = get_connect_4_game_model_path()
 
-    model = load_checkpoint(model=model, folder=".", filename=args["checkpoint_path"])
+    model = load_checkpoint(
+        model=model, filename=args["checkpoint_path"], suffix="latest"
+    )
 
     game.auto_play(player1=model, player2=model)
 
 
 if __name__ == "__main__":
-    train()
+    # train()
     watch()
