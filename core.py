@@ -65,9 +65,9 @@ class Game(abc.ABC):
             board_for_player = self.get_board_from_perspective(state, current_player)
 
             if current_player == 1:
-                action = player1.select_action(board_for_player)
+                action = player1.select_action(board_for_player, game=self)
             else:
-                action = player2.select_action(board_for_player)
+                action = player2.select_action(board_for_player, game=self)
 
             state, next_player = self.get_next_state(state, current_player, action)
             print(f"turn {turn}: {state}")

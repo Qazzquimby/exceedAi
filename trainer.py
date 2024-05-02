@@ -23,7 +23,11 @@ class Trainer:
         current_player = 1
         state = self.game.get_init_board()
 
-        while True:
+        def generator():
+            while True:
+                yield
+
+        for _ in tqdm(generator(), desc="Move", position=2, leave=False):
             board_from_current_player_perspective = (
                 self.game.get_board_from_perspective(state, current_player)
             )
@@ -64,7 +68,7 @@ class Trainer:
                             reward * ((-1) ** (hist_current_player != current_player)),
                         )
                     )
-                    # TODO the hell is this reward signal?
+                    # TODO the hell is this reward signal? Could just be multiplied by 1 or -1?
 
                 return ret
 
@@ -93,17 +97,22 @@ class Trainer:
         pi_losses = []
         v_losses = []
 
-        for epoch in range(self.args["epochs"]):
+        for _epoch in tqdm(
+            range(self.args["epochs"]), desc="Epoch", position=2, leave=False
+        ):
             self.model.train()
 
-            batch_idx = 0
-
-            while batch_idx < int(len(examples) / self.args["batch_size"]):
+            num_batches = int(len(examples) / self.args["batch_size"])
+            for _batch_idx in tqdm(
+                range(num_batches), desc="Batch", position=3, leave=False
+            ):
                 sample_ids = np.random.randint(
                     len(examples), size=self.args["batch_size"]
                 )
                 boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
-                boards = torch.FloatTensor(np.array(boards).astype(np.float64))
+                boards = torch.FloatTensor(np.array(boards).astype(np.float64)).view(
+                    self.args["batch_size"], self.model.size
+                )
                 target_pis = torch.FloatTensor(np.array(pis))
                 target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
 
@@ -128,8 +137,6 @@ class Trainer:
                 optimizer.zero_grad()
                 total_loss.backward()
                 optimizer.step()
-
-                batch_idx += 1
 
             print()
             print("Policy Loss", np.mean(pi_losses))

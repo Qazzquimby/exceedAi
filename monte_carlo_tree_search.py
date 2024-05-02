@@ -1,4 +1,3 @@
-import torch
 import math
 import numpy as np
 
@@ -121,7 +120,7 @@ class MCTS:
         action_probs = self.game.mask_invalid_moves(state, action_probs)
         root.expand(state, to_play, action_probs)
 
-        for _ in range(self.args["num_simulations"]):
+        for _simulation in range(self.args["num_simulations"]):
             node = root
             search_path = [node]
 
