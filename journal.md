@@ -70,4 +70,31 @@ Nope thats wrong. The output is a single vector for each major type of action (t
 play).
 Early in the tree, each card gets an embedding. Each copy of each card in the game gets an encoded
 card containing its embedding, location, etc.
-This is combined with game knowledge for players and the gamestate to get 
+This goes through a transformer encoder (which I'm still learning) to somehow combine it with all
+other context while keeping corresponding encoded versions of each input object (card/player)
+
+The "active card" (not sure I understand) and an averaging of manually masked "selected cards" move
+on
+and the output is a single float for each action (buy, trash, etc) on those.
+
+I now have a connect 4 model that beats me easily. I'm going to refactor it, and then move onto
+blackjack which will force me to handle stochasticity.
+
+How does the encoder have corresponding outputs but also have each part influence each other?:
+It's the encoder part of a transformer.
+
+In exceed I can handle symmetrical states easily I think. Other than markers, I could just hold '
+distance from opponent' and 'distance from wall behind opponent' which I believe holds all
+positioning information.
+
+I should use validation data to prevent overfitting. 10% of training data as validation?
+Using best loss is questionable for saving checkpoints because win rate can improve while loss gets
+worse. Should simulate games periodically to determine best checkpoint.
+
+MCTS tree can be reused if a state is already in the previous tree. Use a hash table.
+
+Games that are too old are probably bad for training as their results are from a dumber version of
+the AI. Effect may decrease over time. Might be worth keeping the data anyway.
+
+Number of MCTS iterations is variable. High maximum but early termination if one choice is clearly better.
+
