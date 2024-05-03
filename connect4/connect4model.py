@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as func
 
+from monte_carlo_tree_search import MCTS
+
 FULLY_CONNECTED_SIZE = 16
 
 
@@ -59,3 +61,10 @@ class Connect4Model(nn.Module):
 
         choice = np.random.choice(len(policy), p=policy)
         return choice
+
+    def select_action_from_sim(self, board_for_player, game, args):
+        self.mcts = MCTS(game=game, model=self, args=args)
+        root = self.mcts.run(model=self, state=board_for_player, to_play=1)
+
+        action = root.select_action(temperature=0)
+        return action

@@ -1,5 +1,6 @@
 import abc
 from pathlib import Path
+from pprint import pprint
 
 import numpy as np
 import torch
@@ -53,13 +54,17 @@ class Game(abc.ABC):
     def get_board_from_perspective(self, board, player):
         raise NotImplementedError
 
-    def auto_play(self, player1, player2):
-        num_games = 5
-
+    def auto_play(self, player1, player2, args, num_games=5):
+        winners = []
         for game_num in range(num_games):
-            self.auto_play_game(player1, player2)
+            winner = self.auto_play_game(player1, player2, args)
+            winners.append(winner)
+        print(f"Player 1 wins: {winners.count(1)}, {winners.count(1)/num_games*100}%")
+        print(
+            f"Player -1 wins: {winners.count(-1)}, {winners.count(-1)/num_games*100}%"
+        )
 
-    def auto_play_game(self, player1, player2):
+    def auto_play_game(self, player1, player2, args):
         state = self.get_init_board()
         current_player = 1
 
@@ -68,23 +73,33 @@ class Game(abc.ABC):
             board_for_player = self.get_board_from_perspective(state, current_player)
 
             if current_player == 1:
-                action = player1.select_action(board_for_player, game=self)
+                current_player_model = player1
             else:
-                action = player2.select_action(board_for_player, game=self)
+                current_player_model = player2
+
+            if current_player_model is None:
+                action = int(input("Enter your move: "))
+            else:
+                action = current_player_model.select_action_from_sim(
+                    board_for_player, game=self, args=args
+                )
 
             state, next_player = self.get_next_state(state, current_player, action)
-            print(f"turn {turn}: {state}")
+            print(f"turn {turn}:")
+            pprint(state)
 
             reward = self.get_reward_for_player(state, current_player)
 
             if reward is not None:
                 if reward == 1:
                     print(f"Player {current_player} wins")
+                    return current_player
                 elif reward == -1:
                     print(f"Player {current_player*-1} wins")
+                    return current_player * -1
                 else:
                     print("Draw")
-                return
+                    return 0
 
             current_player = next_player
             turn += 1

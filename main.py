@@ -4,14 +4,17 @@ from connect2.connect2game import Connect2Game
 from connect2.connect2model import Connect2Model
 from connect4.connect4game import Connect4Game
 from connect4.connect4model import Connect4Model
-from core import device
+from core import device, checkpoints_dir
 from trainer import Trainer, load_checkpoint
 
+batch_size = 16
+
 args = {
-    "batch_size": 16,  # 64,
+    "batch_size": 64,  # 64,
     "numIters": 2500,  # Total number of training iterations
-    "num_simulations": 40,  # Total number of MCTS simulations to run when deciding on a move to play
-    "numEps": 20,  # Number of full games (episodes) to run during each iteration
+    "num_simulations": 400,  # Total number of MCTS simulations to run when deciding on a move to play
+    "numEps": batch_size * 1,
+    # Number of full games (episodes) to run during each iteration
     "epochs": 2,  # Number of epochs of training per iteration
     # "checkpoint_path": "latest.pth",  # location to save latest set of weights
 }
@@ -37,28 +40,70 @@ def get_connect_4_game_model_path():
     return game, model
 
 
+def get_best_checkpoint_suffix():
+    last_iter = get_start_iter() - 1
+    suffix = f"best_model_{last_iter}"
+    return suffix
+
+
+def get_start_iter():
+    checkpoint_paths = list(checkpoints_dir.glob("*.pth"))
+    best_checkpoints_for_game = [
+        path
+        for path in checkpoint_paths
+        if args["checkpoint_path"] in path.name and "best_model" in path.name
+    ]
+    iters = [
+        int(path.name.split("_")[-1].split(".")[0])
+        for path in best_checkpoints_for_game
+    ]
+    if iters:
+        return max(iters) + 1
+    return 1
+
+
 def train():
-    game, model = get_connect_2_game_model_path()
-    # game, model = get_connect_4_game_model_path()
+    # game, model = get_connect_2_game_model_path()
+    game, model = get_connect_4_game_model_path()
     try:
-        model = load_checkpoint(model=model, filename=args["checkpoint_path"])
+        model = load_checkpoint(
+            model=model,
+            filename=args["checkpoint_path"],
+            suffix=get_best_checkpoint_suffix(),
+        )
     except FileNotFoundError:
-        pass
+        print("No checkpoint found. Training from scratch.")
     trainer = Trainer(game, model, args)
-    trainer.learn()
+    trainer.learn(start_iter=get_start_iter())
 
 
 def watch():
-    game, model = get_connect_2_game_model_path()
-    # game, model = get_connect_4_game_model_path()
+    # game, model = get_connect_2_game_model_path()
+    game, model = get_connect_4_game_model_path()
 
     model = load_checkpoint(
-        model=model, filename=args["checkpoint_path"], suffix="latest"
+        model=model,
+        filename=args["checkpoint_path"],
+        suffix=get_best_checkpoint_suffix(),
     )
 
-    game.auto_play(player1=model, player2=model)
+    game.auto_play(player1=model, player2=model, args=args)
+
+
+def player_vs_model():
+    # game, model = get_connect_2_game_model_path()
+    game, model = get_connect_4_game_model_path()
+
+    model = load_checkpoint(
+        model=model,
+        filename=args["checkpoint_path"],
+        suffix="latest",  # get_best_checkpoint_suffix(),
+    )
+
+    game.auto_play(player1=model, player2=None, args=args)
 
 
 if __name__ == "__main__":
-    # train()
+    train()
     watch()
+    player_vs_model()

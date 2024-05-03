@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+
 import numpy as np
 from random import shuffle
 
@@ -19,7 +21,6 @@ class Trainer:
         self.mcts = MCTS(self.game, self.model, self.args)
 
         self.best_loss = float("inf")
-        self.best_epoch = 0
 
     def execute_episode(self):
         train_examples = []
@@ -75,9 +76,18 @@ class Trainer:
 
                 return ret
 
-    def learn(self):
+    def learn(self, start_iter=1):
+        if start_iter > 1:
+            loss_txt_path = (
+                Path(checkpoints_dir) / f'{self.args["checkpoint_path"]}_loss.txt'
+            )
+            try:
+                self.best_loss = float(loss_txt_path.read_text())
+            except:
+                self.best_loss = float("inf")
+
         for iteration in tqdm(
-            range(1, self.args["numIters"] + 1),
+            range(start_iter, self.args["numIters"] + 1),
             desc="Iteration",
             position=0,
             leave=False,
@@ -104,6 +114,11 @@ class Trainer:
                 self.best_loss = current_loss
                 self.best_iter = iteration
 
+                loss_txt_path = (
+                    Path(checkpoints_dir) / f'{self.args["checkpoint_path"]}_loss.txt'
+                )
+                loss_txt_path.touch(exist_ok=True)
+                loss_txt_path.write_text(str(float(self.best_loss)))
                 self.save_checkpoint(
                     filename=self.args["checkpoint_path"],
                     suffix=f"best_model_{iteration}",
