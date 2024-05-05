@@ -20,23 +20,30 @@ args = {
 }
 
 
-def get_connect_2_game_model_path():
+def get_with_run_name(base_name: str, run_name=None):
+    if run_name:
+        return f"{base_name}_{run_name}"
+    else:
+        return base_name
+
+
+def get_connect_2_game_model_path(run_name):
     game = Connect2Game()
     board_size = game.get_board_size()
     action_size = game.get_action_size()
 
     model = Connect2Model(board_size, action_size, device)
-    args["checkpoint_path"] = "connect2"
+    args["checkpoint_path"] = get_with_run_name("connect2", run_name)
     return game, model
 
 
-def get_connect_4_game_model_path():
+def get_connect_4_game_model_path(run_name):
     game = Connect4Game()
     board_size = (game.rows, game.columns)
     action_size = game.get_action_size()
 
     model = Connect4Model(board_size, action_size, device)
-    args["checkpoint_path"] = "connect4"
+    args["checkpoint_path"] = get_with_run_name("connect4", run_name)
     return game, model
 
 
@@ -62,9 +69,9 @@ def get_start_iter():
     return 1
 
 
-def train():
-    # game, model = get_connect_2_game_model_path()
-    game, model = get_connect_4_game_model_path()
+def train(run_name=None):
+    # game, model = get_connect_2_game_model_path(run_name=None)
+    game, model = get_connect_4_game_model_path(run_name=None)
     try:
         model = load_checkpoint(
             model=model,
@@ -77,9 +84,9 @@ def train():
     trainer.learn(start_iter=get_start_iter())
 
 
-def watch():
-    # game, model = get_connect_2_game_model_path()
-    game, model = get_connect_4_game_model_path()
+def watch(run_name=None):
+    # game, model = get_connect_2_game_model_path(run_name)
+    game, model = get_connect_4_game_model_path(run_name)
 
     model = load_checkpoint(
         model=model,
@@ -90,9 +97,9 @@ def watch():
     game.auto_play(player1=model, player2=model, args=args)
 
 
-def player_vs_model():
-    # game, model = get_connect_2_game_model_path()
-    game, model = get_connect_4_game_model_path()
+def player_vs_model(run_name=None):
+    # game, model = get_connect_2_game_model_path(run_name)
+    game, model = get_connect_4_game_model_path(run_name)
 
     model = load_checkpoint(
         model=model,
@@ -104,6 +111,7 @@ def player_vs_model():
 
 
 if __name__ == "__main__":
-    train()
-    watch()
-    player_vs_model()
+    run_name = "lightning"
+    train(run_name)
+    watch(run_name)
+    player_vs_model(run_name)
