@@ -1,11 +1,9 @@
-# alphazero implementation
-
 from connect2.connect2game import Connect2Game
 from connect2.connect2model import Connect2Model
 from connect4.connect4game import Connect4Game
 from connect4.connect4model import Connect4Model
 from core import checkpoints_dir
-from trainer import Trainer, load_checkpoint
+from trainer import TrainLoopManager, load_checkpoint
 
 batch_size = 16
 
@@ -29,10 +27,8 @@ def get_with_run_name(base_name: str, run_name=None):
 
 def get_connect_2_game_model_path(run_name):
     game = Connect2Game()
-    board_size = game.get_board_size()
-    action_size = game.get_action_size()
 
-    model = Connect2Model(board_size, action_size)
+    model = Connect2Model()
     args["checkpoint_path"] = get_with_run_name("connect2", run_name)
     return game, model
 
@@ -89,8 +85,8 @@ def train(game_name: str, run_name=None):
         )
     except FileNotFoundError:
         print("No checkpoint found. Training from scratch.")
-    trainer = Trainer(game, model, args)
-    trainer.learn(start_iter=get_start_iter())
+    trainer = TrainLoopManager(game, model, args)
+    trainer.run_train_loop(start_iter=get_start_iter())
 
 
 def watch(game_name: str, run_name=None):

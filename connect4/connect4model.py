@@ -53,6 +53,7 @@ class Connect4Model(nn.Module):
         return policy.data.cpu().numpy()[0], value.data.cpu().numpy()[0]
 
     def select_action(self, board, game):
+        # TODO duplicate
         policy, _ = self.predict(board)
 
         legal_moves = game.get_valid_moves(board)

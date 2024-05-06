@@ -54,17 +54,26 @@ class Game(abc.ABC):
     def get_board_from_perspective(self, board, player):
         raise NotImplementedError
 
-    def auto_play(self, player1, player2, args, num_games=5):
+    def auto_play(self, player1, player2, args, num_games=5, should_print=False):
         winners = []
         for game_num in range(num_games):
-            winner = self.auto_play_game(player1, player2, args)
+            winner = self.auto_play_game(
+                player1, player2, args, should_print=should_print
+            )
             winners.append(winner)
-        print(f"Player 1 wins: {winners.count(1)}, {winners.count(1)/num_games*100}%")
-        print(
-            f"Player -1 wins: {winners.count(-1)}, {winners.count(-1)/num_games*100}%"
-        )
+        frac_player_1_wins = winners.count(1) / num_games
+        if should_print:
+            print(f"Player 1 wins: {winners.count(1)}, {frac_player_1_wins*100}%")
+            print(
+                f"Player -1 wins: {winners.count(-1)}, {(1-frac_player_1_wins)/num_games*100}%"
+            )
+        return frac_player_1_wins
 
-    def auto_play_game(self, player1, player2, args):
+    def auto_play_game(self, player1, player2, args, should_print=False):
+        if player1 is None or player2 is None:
+            # playing with human, turning prints on
+            should_print = True
+
         state = self.get_init_board()
         current_player = 1
 
@@ -85,21 +94,16 @@ class Game(abc.ABC):
                 )
 
             state, next_player = self.get_next_state(state, current_player, action)
-            print(f"turn {turn}:")
-            pprint(state)
+            if should_print:
+                print(f"turn {turn}:")
+                pprint(state)
 
             reward = self.get_reward_for_player(state, current_player)
 
             if reward is not None:
-                if reward == 1:
-                    print(f"Player {current_player} wins")
-                    return current_player
-                elif reward == -1:
-                    print(f"Player {current_player*-1} wins")
-                    return current_player * -1
-                else:
-                    print("Draw")
-                    return 0
+                winner = current_player * reward
+                if should_print:
+                    print(f"Player {winner} wins")
 
             current_player = next_player
             turn += 1
