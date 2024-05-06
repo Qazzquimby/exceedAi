@@ -11,6 +11,12 @@ class Connect2Game(Game):
         winNumber: 2
     """
 
+    columns = 4
+    win = 2
+
+    size = columns
+    action_size = columns
+
     def __init__(self):
         super().__init__()
         self.columns = 4

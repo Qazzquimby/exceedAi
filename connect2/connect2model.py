@@ -9,17 +9,19 @@ import torch.nn.functional as func
 import lightning as L
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 
+from connect2.connect2game import Connect2Game
+from monte_carlo_tree_search import MCTS
+
 FULLY_CONNECTED_SIZE = 16
 
 
 class Connect2Model(L.LightningModule):
-    def __init__(self, board_size, action_size):
+    def __init__(self):
         super().__init__()
-        self.size = board_size
-        self.action_size = action_size
+        self.game_cls = Connect2Game
 
         self.fully_connected_1 = nn.Linear(
-            in_features=self.size, out_features=FULLY_CONNECTED_SIZE
+            in_features=self.game_cls.size, out_features=FULLY_CONNECTED_SIZE
         )
         self.fully_connected_2 = nn.Linear(
             in_features=FULLY_CONNECTED_SIZE, out_features=FULLY_CONNECTED_SIZE
@@ -27,7 +29,7 @@ class Connect2Model(L.LightningModule):
         # "cross entropy loss" to train from MCTS
 
         self.action_head = nn.Linear(
-            in_features=FULLY_CONNECTED_SIZE, out_features=self.action_size
+            in_features=FULLY_CONNECTED_SIZE, out_features=self.game_cls.action_size
         )
         self.value_head = nn.Linear(in_features=FULLY_CONNECTED_SIZE, out_features=1)
 
@@ -76,21 +78,27 @@ class Connect2Model(L.LightningModule):
 
     # - for output - #
 
-    def predict(self, board):
-        board = torch.FloatTensor(board.astype(np.float32)).to(self.device)
-        board = board.view(1, self.size)
+    def predict(self, state):
+        state = torch.FloatTensor(state.astype(np.float32)).to(self.device)
         self.eval()
         with torch.no_grad():
-            policy, value = self.forward(board)
+            policy, value = self.forward(state)
 
         return policy.data.cpu().numpy()[0], value.data.cpu().numpy()[0]
 
-    def select_action(self, board, game):
-        policy, _ = self.predict(board)
+    def select_action(self, state, game):
+        policy, _ = self.predict(state)
 
-        legal_moves = game.get_valid_moves(board)
+        legal_moves = game.get_valid_moves(state)
         policy = policy * legal_moves
         policy = policy / np.sum(policy)
 
         choice = np.random.choice(len(policy), p=policy)
         return choice
+
+    def select_action_from_sim(self, board_for_player, game, args):
+        self.mcts = MCTS(game=game, model=self, args=args)
+        root = self.mcts.run(model=self, state=board_for_player, to_play=1)
+
+        action = root.select_action(temperature=0)
+        return action
