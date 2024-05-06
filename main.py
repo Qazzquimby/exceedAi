@@ -4,7 +4,7 @@ from connect2.connect2game import Connect2Game
 from connect2.connect2model import Connect2Model
 from connect4.connect4game import Connect4Game
 from connect4.connect4model import Connect4Model
-from core import device, checkpoints_dir
+from core import checkpoints_dir
 from trainer import Trainer, load_checkpoint
 
 batch_size = 16
@@ -13,7 +13,7 @@ args = {
     "batch_size": 64,  # 64,
     "numIters": 2500,  # Total number of training iterations
     "num_simulations": 400,  # Total number of MCTS simulations to run when deciding on a move to play
-    "numEps": batch_size * 1,
+    "numEps": batch_size * 2,
     # Number of full games (episodes) to run during each iteration
     "epochs": 2,  # Number of epochs of training per iteration
     # "checkpoint_path": "latest.pth",  # location to save latest set of weights
@@ -32,7 +32,7 @@ def get_connect_2_game_model_path(run_name):
     board_size = game.get_board_size()
     action_size = game.get_action_size()
 
-    model = Connect2Model(board_size, action_size, device)
+    model = Connect2Model(board_size, action_size)
     args["checkpoint_path"] = get_with_run_name("connect2", run_name)
     return game, model
 
@@ -42,7 +42,7 @@ def get_connect_4_game_model_path(run_name):
     board_size = (game.rows, game.columns)
     action_size = game.get_action_size()
 
-    model = Connect4Model(board_size, action_size, device)
+    model = Connect4Model(board_size, action_size)
     args["checkpoint_path"] = get_with_run_name("connect4", run_name)
     return game, model
 
@@ -69,9 +69,18 @@ def get_start_iter():
     return 1
 
 
-def train(run_name=None):
-    # game, model = get_connect_2_game_model_path(run_name=None)
-    game, model = get_connect_4_game_model_path(run_name=None)
+def get_game_model(game_name: str, run_name=None):
+    if game_name == "connect2":
+        game, model = get_connect_2_game_model_path(run_name=run_name)
+    elif game_name == "connect4":
+        game, model = get_connect_4_game_model_path(run_name=run_name)
+    else:
+        raise ValueError(f"Unknown game name: {game_name}")
+    return game, model
+
+
+def train(game_name: str, run_name=None):
+    game, model = get_game_model(game_name, run_name)
     try:
         model = load_checkpoint(
             model=model,
@@ -84,9 +93,8 @@ def train(run_name=None):
     trainer.learn(start_iter=get_start_iter())
 
 
-def watch(run_name=None):
-    # game, model = get_connect_2_game_model_path(run_name)
-    game, model = get_connect_4_game_model_path(run_name)
+def watch(game_name: str, run_name=None):
+    game, model = get_game_model(game_name, run_name)
 
     model = load_checkpoint(
         model=model,
@@ -97,9 +105,8 @@ def watch(run_name=None):
     game.auto_play(player1=model, player2=model, args=args)
 
 
-def player_vs_model(run_name=None):
-    # game, model = get_connect_2_game_model_path(run_name)
-    game, model = get_connect_4_game_model_path(run_name)
+def player_vs_model(game_name, run_name=None):
+    game, model = get_game_model(game_name, run_name)
 
     model = load_checkpoint(
         model=model,
@@ -111,7 +118,8 @@ def player_vs_model(run_name=None):
 
 
 if __name__ == "__main__":
+    game_name = "connect2"
     run_name = "lightning"
-    train(run_name)
-    watch(run_name)
-    player_vs_model(run_name)
+    train(game_name=game_name, run_name=run_name)
+    watch(game_name=game_name, run_name=run_name)
+    player_vs_model(game_name=game_name, run_name=run_name)

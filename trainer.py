@@ -1,14 +1,10 @@
-import os
-from pathlib import Path
-
 import numpy as np
-from random import shuffle
 
 import torch
-import torch.optim as optim
-from tqdm import tqdm
+from torch.utils.data import DataLoader, random_split
+import lightning as L
 
-from core import device, checkpoints_dir
+from core import checkpoints_dir
 from monte_carlo_tree_search import MCTS
 
 
@@ -20,8 +16,6 @@ class Trainer:
         self.args = args
         self.mcts = MCTS(self.game, self.model, self.args)
 
-        self.best_loss = float("inf")
-
     def execute_episode(self):
         train_examples = []
         current_player = 1
@@ -31,7 +25,8 @@ class Trainer:
             while True:
                 yield
 
-        for _ in tqdm(generator(), desc="Move", position=2, leave=False):
+        while True:
+            # for _ in tqdm(generator(), desc="Move", position=2, leave=False):
             board_from_current_player_perspective = (
                 self.game.get_board_from_perspective(state, current_player)
             )
@@ -77,110 +72,134 @@ class Trainer:
                 return ret
 
     def learn(self, start_iter=1):
-        if start_iter > 1:
-            loss_txt_path = (
-                Path(checkpoints_dir) / f'{self.args["checkpoint_path"]}_loss.txt'
-            )
-            try:
-                self.best_loss = float(loss_txt_path.read_text())
-            except:
-                self.best_loss = float("inf")
+        trainer = L.Trainer(
+            max_epochs=self.args["epochs"],
+            log_every_n_steps=1,
+        )
 
-        for iteration in tqdm(
-            range(start_iter, self.args["numIters"] + 1),
-            desc="Iteration",
-            position=0,
-            leave=False,
-        ):
+        for play_session in range(start_iter, self.args["numIters"] + 1):
+            #     tqdm(
+            #     range(start_iter, self.args["numIters"] + 1),
+            #     desc="Play Session",
+            #     position=0,
+            #     leave=False,
+            # ):
             train_examples = []
 
-            for _episode in tqdm(
-                range(self.args["numEps"]), desc="Episode", position=1, leave=False
-            ):
+            for _game in range(self.args["numEps"]):
+                #     tqdm(
+                #     range(self.args["numEps"]), desc="Game", position=1, leave=False
+                # ):
                 iteration_train_examples = self.execute_episode()
                 train_examples.extend(iteration_train_examples)
 
-            shuffle(train_examples)
-            current_loss = self.train(train_examples)
+            dataset = torch.utils.data.TensorDataset(
+                torch.FloatTensor(np.array([i[0] for i in train_examples])),
+                torch.FloatTensor(np.array([i[1] for i in train_examples])),
+                torch.FloatTensor(np.array([i[2] for i in train_examples])),
+            )
+            validation_frac = 0.1
+            train_set, validation_set = random_split(
+                dataset,
+                [
+                    len(dataset) - int(len(dataset) * validation_frac),
+                    int(len(dataset) * validation_frac),
+                ],
+            )
+            train_loader = DataLoader(
+                train_set,
+                batch_size=self.args["batch_size"],
+                shuffle=True,
+                num_workers=1,
+            )
+            validation_loader = DataLoader(
+                validation_set,
+                num_workers=1,
+            )
+            trainer.fit(self.model, train_loader, validation_loader)
 
-            if torch.isnan(current_loss):
-                print("Loss is NaN. Rolling back.")
-                self.load_checkpoint(
-                    filename=self.args["checkpoint_path"], suffix="latest"
-                )
+            # current_loss = self.train(train_examples)
+            #
+            # if torch.isnan(current_loss):
+            #     print("Loss is NaN. Rolling back.")
+            #     self.load_checkpoint(
+            #         filename=self.args["checkpoint_path"], suffix="latest"
+            #     )
+            #
+            # if current_loss < self.best_loss:
+            #     diff = self.best_loss - current_loss
+            #     self.best_loss = current_loss
+            #     self.best_iter = play_session
+            #
+            #     loss_txt_path = (
+            #         Path(checkpoints_dir) / f'{self.args["checkpoint_path"]}_loss.txt'
+            #     )
+            #     loss_txt_path.touch(exist_ok=True)
+            #     loss_txt_path.write_text(str(float(self.best_loss)))
+            #     self.save_checkpoint(
+            #         filename=self.args["checkpoint_path"],
+            #         suffix=f"best_model_{play_session}",
+            #     )
+            #     print(
+            #         f"Iter {play_session}: New best model saved with loss {self.best_loss:.4f}. Improved by {diff:.4f}"
+            #     )
+            #
+            # self.save_checkpoint(filename=self.args["checkpoint_path"], suffix="latest")
 
-            if current_loss < self.best_loss:
-                diff = self.best_loss - current_loss
-                self.best_loss = current_loss
-                self.best_iter = iteration
-
-                loss_txt_path = (
-                    Path(checkpoints_dir) / f'{self.args["checkpoint_path"]}_loss.txt'
-                )
-                loss_txt_path.touch(exist_ok=True)
-                loss_txt_path.write_text(str(float(self.best_loss)))
-                self.save_checkpoint(
-                    filename=self.args["checkpoint_path"],
-                    suffix=f"best_model_{iteration}",
-                )
-                print(
-                    f"Iter {iteration}: New best model saved with loss {self.best_loss:.4f}. Improved by {diff:.4f}"
-                )
-
-            self.save_checkpoint(filename=self.args["checkpoint_path"], suffix="latest")
-
-    def train(self, examples):
-        optimizer = optim.Adam(self.model.parameters(), lr=5e-4)
-        pi_losses = []
-        v_losses = []
-
-        total_loss = None
-
-        for _epoch in tqdm(
-            range(self.args["epochs"]), desc="Epoch", position=2, leave=False
-        ):
-            self.model.train()
-
-            num_batches = int(len(examples) / self.args["batch_size"])
-            for _batch_idx in tqdm(
-                range(num_batches), desc="Batch", position=3, leave=False
-            ):
-                sample_ids = np.random.randint(
-                    len(examples), size=self.args["batch_size"]
-                )
-                boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
-                boards = torch.FloatTensor(np.array(boards).astype(np.float64)).view(
-                    self.args["batch_size"], self.model.size
-                )
-                target_pis = torch.FloatTensor(np.array(pis))
-                target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
-
-                # predict
-                boards = boards.contiguous()  # .cuda()
-                target_pis = target_pis.contiguous()  # .cuda()
-                target_vs = target_vs.contiguous()  # .cuda()
-                if device.type == "cuda":
-                    boards = boards.cuda()
-                    target_pis = target_pis.cuda()
-                    target_vs = target_vs.cuda()
-
-                # compute output
-                out_pi, out_v = self.model(boards)
-                l_pi = self.loss_pi(target_pis, out_pi)
-                l_v = self.loss_v(target_vs, out_v)
-                total_loss = l_pi + l_v
-
-                pi_losses.append(float(l_pi))
-                v_losses.append(float(l_v))
-
-                optimizer.zero_grad()
-                total_loss.backward()
-                optimizer.step()
-
-            print()
-            print("Policy Loss", np.mean(pi_losses))
-            print("Value Loss", np.mean(v_losses))
-        return total_loss
+    # def train(self, examples):
+    #     optimizer = optim.Adam(self.model.parameters(), lr=5e-4)
+    #     pi_losses = []
+    #     v_losses = []
+    #
+    #     total_loss = None
+    #
+    #     for _epoch in range(self.args["epochs"]):
+    #         #     tqdm(
+    #         #     range(self.args["epochs"]), desc="Epoch", position=2, leave=False
+    #         # ):
+    #         self.model.train()
+    #
+    #         num_batches = int(len(examples) / self.args["batch_size"])
+    #         for _batch_idx in range(num_batches):
+    #             # tqdm(
+    #             #     range(num_batches), desc="Batch", position=3, leave=False
+    #             # ):
+    #             sample_ids = np.random.randint(
+    #                 len(examples), size=self.args["batch_size"]
+    #             )
+    #             boards, pis, vs = list(zip(*[examples[i] for i in sample_ids]))
+    #             boards = torch.FloatTensor(np.array(boards).astype(np.float64)).view(
+    #                 self.args["batch_size"], self.model.size
+    #             )
+    #             target_pis = torch.FloatTensor(np.array(pis))
+    #             target_vs = torch.FloatTensor(np.array(vs).astype(np.float64))
+    #
+    #             # predict
+    #             boards = boards.contiguous()  # .cuda()
+    #             target_pis = target_pis.contiguous()  # .cuda()
+    #             target_vs = target_vs.contiguous()  # .cuda()
+    #             if device.type == "cuda":
+    #                 boards = boards.cuda()
+    #                 target_pis = target_pis.cuda()
+    #                 target_vs = target_vs.cuda()
+    #
+    #             # compute output
+    #             out_pi, out_v = self.model(boards)
+    #             l_pi = self.loss_pi(target_pis, out_pi)
+    #             l_v = self.loss_v(target_vs, out_v)
+    #             total_loss = l_pi + l_v
+    #
+    #             pi_losses.append(float(l_pi))
+    #             v_losses.append(float(l_v))
+    #
+    #             optimizer.zero_grad()
+    #             total_loss.backward()
+    #             optimizer.step()
+    #
+    #         print()
+    #         print("Policy Loss", np.mean(pi_losses))
+    #         print("Value Loss", np.mean(v_losses))
+    #     return total_loss
 
     def loss_pi(self, targets, outputs):
         loss = -(targets * torch.log(outputs)).sum(dim=1)
