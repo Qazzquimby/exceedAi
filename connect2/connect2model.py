@@ -1,5 +1,3 @@
-from typing import Any
-
 import numpy as np
 
 import torch
@@ -71,8 +69,8 @@ class Connect2Model(L.LightningModule):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         inputs, target_policy, target_value = batch
         pred_policy, pred_output = self(inputs)
-        policy_loss = self.get_policy_loss(target_policy, pred_policy)
-        value_loss = self.get_value_loss(target_value, pred_output)
+        policy_loss = self.get_policy_loss(pred_policy, target_policy)
+        value_loss = self.get_value_loss(pred_output, target_value)
         loss = policy_loss + value_loss
         return policy_loss, value_loss, loss
 
