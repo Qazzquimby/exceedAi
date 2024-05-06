@@ -1,4 +1,5 @@
 import abc
+import random
 from pathlib import Path
 from pprint import pprint
 
@@ -75,7 +76,7 @@ class Game(abc.ABC):
             should_print = True
 
         state = self.get_init_board()
-        current_player = 1
+        current_player = random.choice([1, -1])
 
         turn = 0
         while True:
@@ -104,6 +105,7 @@ class Game(abc.ABC):
                 winner = current_player * reward
                 if should_print:
                     print(f"Player {winner} wins")
+                return winner
 
             current_player = next_player
             turn += 1

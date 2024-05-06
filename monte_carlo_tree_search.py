@@ -66,6 +66,8 @@ class Node:
         best_child = None
 
         for action, child in self.children.items():
+            if math.isnan(child.prior):
+                continue
             score = ucb_score(self, child)
             if score > best_score:
                 best_score = score
@@ -81,7 +83,7 @@ class Node:
         self.to_play = to_play
         self.state = state
         for action, prob in enumerate(action_probs):
-            if prob != 0:
+            if prob != 0 and not math.isnan(prob):
                 self.children[action] = Node(prior=prob, to_play=self.to_play * -1)
 
     def __repr__(self):
@@ -129,7 +131,8 @@ class MCTS:
             while node.expanded():
                 action, node = node.select_child()
                 search_path.append(node)
-            assert action is not None
+            if action is None:
+                break  # All nodes were expanded
 
             parent = search_path[-2]
             state = parent.state

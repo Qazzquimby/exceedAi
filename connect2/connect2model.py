@@ -35,6 +35,7 @@ class Connect2Model(L.LightningModule):
         self.get_value_loss = nn.MSELoss()
 
     def forward(self, x) -> tuple[torch.Tensor, torch.Tensor]:
+        assert x.shape[1] == self.game_cls.size
         x = func.relu(self.fully_connected_1(x))
         x = func.relu(self.fully_connected_2(x))
 
@@ -70,14 +71,18 @@ class Connect2Model(L.LightningModule):
         inputs, target_policy, target_value = batch
         pred_policy, pred_output = self(inputs)
         policy_loss = self.get_policy_loss(pred_policy, target_policy)
-        value_loss = self.get_value_loss(pred_output, target_value)
+        value_loss = self.get_value_loss(pred_output, target_value.view(-1, 1))
         loss = policy_loss + value_loss
         return policy_loss, value_loss, loss
 
     # - for output - #
 
     def predict(self, state):
-        state = torch.FloatTensor(state.astype(np.float32)).to(self.device)
+        state = (
+            torch.FloatTensor(state.astype(np.float32))
+            .to(self.device)
+            .view(1, self.game_cls.size)
+        )
         self.eval()
         with torch.no_grad():
             policy, value = self.forward(state)
