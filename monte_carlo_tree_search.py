@@ -8,7 +8,9 @@ def ucb_score(parent, child):
     """
     The score for an action that would transition between the parent and child.
     """
-    prior_score = child.prior * math.sqrt(parent.visit_count) / (child.visit_count + 1)
+    prior_score = (
+        child.prior * math.sqrt(parent.visit_count + 1) / (child.visit_count + 1)
+    )
     if child.visit_count > 0:
         # The value of the child is from the perspective of the opposing player
         value_score = -child.value()
@@ -29,7 +31,7 @@ class Node:
         self.prior = prior  # prior probability of selecting this from parent
         self.value_sum = 0  # total value of this and children from all visits
         self.children = {}  # all legal child positions
-        self.state = None
+        self.state = None  # This is set during expand
 
     def expanded(self):
         return len(self.children) > 0
