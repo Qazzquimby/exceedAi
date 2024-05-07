@@ -28,12 +28,6 @@ class Connect2Game(Game):
         b = np.zeros((self.columns,), dtype=int)
         return b
 
-    def get_board_size(self):
-        return self.columns
-
-    def get_action_size(self):
-        return self.columns
-
     def get_next_state(self, board, player, action):
         b = np.copy(board)
         if b[action] == 0:
@@ -50,7 +44,7 @@ class Connect2Game(Game):
 
     def get_valid_moves(self, board):
         # All moves are invalid by default
-        valid_moves = [0] * self.get_action_size()
+        valid_moves = [0] * self.action_size
 
         for index in range(self.columns):
             if board[index] == 0:

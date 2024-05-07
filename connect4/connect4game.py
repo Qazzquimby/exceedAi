@@ -4,18 +4,19 @@ from core import Game
 
 
 class Connect4Game(Game):
+    name = "connect4"
+
+    rows = 6
+    columns = 7
+    action_size = columns
+    win = 4
+
     def __init__(self):
         super().__init__()
-        self.rows = 6
-        self.columns = 7
-        self.win = 4
 
     def get_init_board(self):
         board = np.zeros((self.rows, self.columns), dtype=int)
         return board
-
-    def get_action_size(self):
-        return self.columns
 
     def get_next_state(self, board, player, action):
         new_board = np.copy(board)
@@ -35,7 +36,7 @@ class Connect4Game(Game):
 
     def get_valid_moves(self, board):
         # All moves are invalid by default
-        valid_moves = [0] * self.get_action_size()
+        valid_moves = [0] * self.action_size
 
         for column in range(self.columns):
             if board[0][column] == 0:
