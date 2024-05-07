@@ -33,7 +33,7 @@ def get_connect_2_game_model_path(run_name):
     return game, model
 
 
-def get_connect_4_game_model_path(run_name):
+def get_connect_4_game_model_path(run_name=None):
     game = Connect4Game()
     board_size = (game.rows, game.columns)
     action_size = game.get_action_size()
@@ -44,8 +44,7 @@ def get_connect_4_game_model_path(run_name):
 
 
 def get_best_checkpoint_suffix():
-    last_iter = get_start_iter() - 1
-    suffix = f"best_model_{last_iter}"
+    suffix = f"best_model"
     return suffix
 
 
@@ -80,13 +79,13 @@ def train(game_name: str, run_name=None):
     try:
         model = load_checkpoint(
             model=model,
-            filename=args["checkpoint_path"],
-            suffix=get_best_checkpoint_suffix(),
+            game=game,
+            filename=get_best_checkpoint_suffix(),
         )
     except FileNotFoundError:
         print("No checkpoint found. Training from scratch.")
     trainer = TrainLoopManager(game, model, args)
-    trainer.run_train_loop(start_iter=get_start_iter())
+    trainer.run_train_loop()  # start_iter=get_start_iter())
 
 
 def watch(game_name: str, run_name=None):
@@ -94,8 +93,8 @@ def watch(game_name: str, run_name=None):
 
     model = load_checkpoint(
         model=model,
-        filename=args["checkpoint_path"],
-        suffix=get_best_checkpoint_suffix(),
+        game=game,
+        filename=get_best_checkpoint_suffix(),
     )
 
     game.auto_play(player1=model, player2=model, args=args)
@@ -106,8 +105,8 @@ def player_vs_model(game_name, run_name=None):
 
     model = load_checkpoint(
         model=model,
-        filename=args["checkpoint_path"],
-        suffix="latest",  # get_best_checkpoint_suffix(),
+        game=game,
+        filename=get_best_checkpoint_suffix(),
     )
 
     game.auto_play(player1=model, player2=None, args=args)

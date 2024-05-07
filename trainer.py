@@ -1,12 +1,17 @@
+import pickle
+
 import numpy as np
 
 import torch
 from lightning import seed_everything
 from torch.utils.data import DataLoader, random_split
 import lightning as L
+from tqdm import tqdm
 
-from core import checkpoints_dir
+from core import checkpoints_dir, Game
 from monte_carlo_tree_search import MCTS
+
+MAX_TRAIN_EXAMPLES = 5_000
 
 
 class TrainLoopManager:
@@ -26,12 +31,16 @@ class TrainLoopManager:
         self.trainer = L.Trainer(
             max_epochs=self.args["epochs"],
             log_every_n_steps=1,
+            enable_model_summary=False,
         )
 
     def run_train_loop(self, start_iter=1):
-        train_examples = []
+        train_examples = load_train_examples(self.game)
+
         for play_session in range(start_iter + 1, self.args["numIters"] + 1):
             train_examples += self.run_self_play()
+            train_examples = train_examples[-MAX_TRAIN_EXAMPLES:]
+            save_train_examples(self.game, train_examples)
 
             avg_moves_per_game = sum(
                 [len(history) for history in train_examples]
@@ -77,9 +86,10 @@ class TrainLoopManager:
 
         if frac_wins > 0.5:
             print(f"Accepting new model: {frac_wins}")
-            self.save_checkpoint(
-                filename=self.args["checkpoint_path"],
-                suffix=f"best_model",
+            save_checkpoint(
+                model=self.model,
+                game=self.game,
+                filename=f"best_model",
             )
             self.model = new_model
         else:
@@ -88,10 +98,9 @@ class TrainLoopManager:
     def run_self_play(self):
         train_examples = []
         self.model.eval()
-        for _game in range(self.args["numEps"]):
-            #     tqdm(
-            #     range(self.args["numEps"]), desc="Game", position=1, leave=False
-            # ):
+        for _game in tqdm(
+            range(self.args["numEps"]), desc="Game", position=1, leave=False
+        ):
             iteration_train_examples = self.run_training_game()
             train_examples.extend(iteration_train_examples)
         return train_examples
@@ -101,12 +110,7 @@ class TrainLoopManager:
         current_player = 1
         state = self.game.get_init_board()
 
-        def generator():
-            while True:
-                yield
-
         while True:
-            # for _ in tqdm(generator(), desc="Move", position=2, leave=False):
             board_from_current_player_perspective = (
                 self.game.get_board_from_perspective(state, current_player)
             )
@@ -119,7 +123,8 @@ class TrainLoopManager:
             action_probs = [0 for _ in range(self.game.get_action_size())]
             for k, v in root.children.items():
                 action_probs[k] = v.visit_count
-                # you use highest visit count, not value, because a node visited few times could have a very inaccurate value.
+                # you use the highest visit count, not value,
+                # because a node visited few times could have a very inaccurate value.
 
             action_probs /= np.sum(action_probs)
             train_examples.append(
@@ -132,14 +137,24 @@ class TrainLoopManager:
             )
             reward = self.game.get_reward_for_player(state, current_player)
 
-            if reward is not None:  # todo want to reward using expected value
+            if reward is not None:
                 ret = []
                 for (
                     hist_state,
                     hist_current_player,
                     hist_action_probs,
                 ) in train_examples:
-                    # [Board, currentPlayer, actionProbabilities, Reward]
+
+                    old_version = reward * (
+                        (-1) ** (hist_current_player != current_player)
+                    )
+                    # todo remove
+
+                    if hist_current_player != current_player:
+                        reward *= -1
+
+                    assert old_version == reward
+
                     ret.append(
                         (
                             hist_state,
@@ -147,34 +162,46 @@ class TrainLoopManager:
                             reward * ((-1) ** (hist_current_player != current_player)),
                         )
                     )
-                    # TODO the hell is this reward signal? Could just be multiplied by 1 or -1?
+                    # TODO could just be multiplied by 1 or -1?
 
                 return ret
 
-    def save_checkpoint(self, filename, suffix=None):
-        if suffix is not None:
-            filename = f"{filename}_{suffix}"
-        checkpoints_dir.mkdir(parents=True, exist_ok=True)
 
-        filepath = f"{checkpoints_dir / filename}.pth"
-        torch.save(
-            {
-                "state_dict": self.model.state_dict(),
-            },
-            filepath,
-        )
-
-    def load_checkpoint(self, filename, suffix=None):
-        self.model = load_checkpoint(model=self.model, filename=filename, suffix=suffix)
+def save_checkpoint(model, game: Game, filename: str):
+    filename += ".pth"
+    path = checkpoints_dir / game.name / filename
+    torch.save(
+        {
+            "state_dict": model.state_dict(),
+        },
+        path,
+    )
 
 
-def load_checkpoint(model, filename, suffix=None):
-    if suffix is not None:
-        filename = f"{filename}_{suffix}"
-    filepath = f"{checkpoints_dir / filename}.pth"
-    print(f"LOADING {filepath}")
-    checkpoint = torch.load(filepath)
+def load_checkpoint(model, game: Game, filename: str):
+    filename += ".pth"
+    path = checkpoints_dir / game.name / filename
+    print(f"LOADING {path}")
+    checkpoint = torch.load(path)
 
     model.load_state_dict(checkpoint["state_dict"])
     model.eval()
     return model
+
+
+def get_train_examples_path(game):
+    return checkpoints_dir / game.name / "train_examples.pkl"
+
+
+def load_train_examples(game):
+    try:
+        train_examples = pickle.load(open(get_train_examples_path(game), "rb"))
+    except FileNotFoundError:
+        train_examples = []
+    return train_examples
+
+
+def save_train_examples(game, train_examples):
+    path = get_train_examples_path(game)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pickle.dump(train_examples, open(get_train_examples_path(game), "wb"))

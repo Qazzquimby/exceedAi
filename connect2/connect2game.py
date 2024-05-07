@@ -11,6 +11,8 @@ class Connect2Game(Game):
         winNumber: 2
     """
 
+    name = "connect2"
+
     columns = 4
     win = 2
 

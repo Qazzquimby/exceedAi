@@ -4,15 +4,13 @@ from pathlib import Path
 from pprint import pprint
 
 import numpy as np
-import torch
-
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# print(f"Using device {device}")
 
 checkpoints_dir = Path("checkpoints")
 
 
 class Game(abc.ABC):
+    name = NotImplemented
+
     def __init__(self):
         pass
 
@@ -58,8 +56,13 @@ class Game(abc.ABC):
     def auto_play(self, player1, player2, args, num_games=5, should_print=False):
         winners = []
         for game_num in range(num_games):
+            player1_goes_first = game_num % 2 == 0
             winner = self.auto_play_game(
-                player1, player2, args, should_print=should_print
+                player1,
+                player2,
+                args,
+                should_print=should_print,
+                player1_goes_first=player1_goes_first,
             )
             winners.append(winner)
         frac_player_1_wins = winners.count(1) / num_games
@@ -70,13 +73,22 @@ class Game(abc.ABC):
             )
         return frac_player_1_wins
 
-    def auto_play_game(self, player1, player2, args, should_print=False):
+    def auto_play_game(
+        self,
+        player1,
+        player2,
+        args,
+        should_print=False,
+        player1_goes_first: bool = True,
+    ):
         if player1 is None or player2 is None:
             # playing with human, turning prints on
             should_print = True
 
         state = self.get_init_board()
-        current_player = random.choice([1, -1])
+        current_player = 1
+        if not player1_goes_first:
+            current_player = -1
 
         turn = 0
         while True:
