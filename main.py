@@ -35,10 +35,7 @@ def get_connect_2_game_model_path(run_name):
 
 def get_connect_4_game_model_path(run_name=None):
     game = Connect4Game()
-    board_size = (game.rows, game.columns)
-    action_size = game.get_action_size()
-
-    model = Connect4Model(board_size, action_size)
+    model = Connect4Model()
     args["checkpoint_path"] = get_with_run_name("connect4", run_name)
     return game, model
 
@@ -112,9 +109,13 @@ def player_vs_model(game_name, run_name=None):
     game.auto_play(player1=model, player2=None, args=args)
 
 
-if __name__ == "__main__":
+def main():
     game_name = "connect2"
-    run_name = "lightning"
+    run_name = None
     train(game_name=game_name, run_name=run_name)
     watch(game_name=game_name, run_name=run_name)
     player_vs_model(game_name=game_name, run_name=run_name)
+
+
+if __name__ == "__main__":
+    main()

@@ -120,7 +120,7 @@ class TrainLoopManager:
                 self.model, board_from_current_player_perspective, to_play=1
             )
 
-            action_probs = [0 for _ in range(self.game.get_action_size())]
+            action_probs = [0 for _ in range(self.game.size)]
             for k, v in root.children.items():
                 action_probs[k] = v.visit_count
                 # you use the highest visit count, not value,

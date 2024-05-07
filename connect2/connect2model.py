@@ -8,7 +8,6 @@ import lightning as L
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 from connect2.connect2game import Connect2Game
-from monte_carlo_tree_search import MCTS
 
 FULLY_CONNECTED_SIZE = 16
 
@@ -87,23 +86,3 @@ class Connect2Model(L.LightningModule):
             policy, value = self.forward(state)
 
         return policy.data.cpu().numpy()[0], value.data.cpu().numpy()[0]
-
-
-def select_action(model, state, game):
-    policy, _ = model.predict(state)
-
-    legal_moves = game.get_valid_moves(state)
-    policy = policy * legal_moves
-    policy = policy / np.sum(policy)
-
-    choice = np.random.choice(len(policy), p=policy)
-    return choice
-
-
-def select_action_from_sim(model, board_for_player, game, args):
-    # todo, want to keep mcts states with hash to avoid recomputation
-    mcts = MCTS(game=game, model=model, args=args)
-    root = mcts.run(model=model, state=board_for_player, to_play=1)
-
-    action = root.select_action(temperature=0)
-    return action

@@ -34,7 +34,7 @@ class Connect2Game(Game):
             b[action] = player
 
         # new board, new player
-        return (b, -player)
+        return b, -player
 
     def has_legal_moves(self, board):
         for index in range(self.columns):

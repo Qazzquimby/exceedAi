@@ -4,21 +4,19 @@ from pprint import pprint
 
 import numpy as np
 
-from connect2.connect2model import select_action_from_sim
+from monte_carlo_tree_search import MCTS
 
 checkpoints_dir = Path("checkpoints")
 
 
 class Game(abc.ABC):
     name = NotImplemented
+    size = NotImplemented
 
     def __init__(self):
         pass
 
     def get_init_board(self):
-        raise NotImplementedError
-
-    def get_action_size(self):
         raise NotImplementedError
 
     def get_next_state(self, board, player, action):
@@ -69,9 +67,7 @@ class Game(abc.ABC):
         frac_player_1_wins = winners.count(1) / num_games
         if should_print:
             print(f"Player 1 wins: {winners.count(1)}, {frac_player_1_wins*100}%")
-            print(
-                f"Player -1 wins: {winners.count(-1)}, {(1-frac_player_1_wins)/num_games*100}%"
-            )
+            print(f"Player -1 wins: {winners.count(-1)}, {(1-frac_player_1_wins)*100}%")
         return frac_player_1_wins
 
     def auto_play_game(
@@ -125,3 +121,23 @@ class Game(abc.ABC):
 
             current_player = next_player
             turn += 1
+
+
+def select_action(model, state, game):
+    policy, _ = model.predict(state)
+
+    legal_moves = game.get_valid_moves(state)
+    policy = policy * legal_moves
+    policy = policy / np.sum(policy)
+
+    choice = np.random.choice(len(policy), p=policy)
+    return choice
+
+
+def select_action_from_sim(model, board_for_player, game, args):
+    # todo, want to keep mcts states with hash to avoid recomputation
+    mcts = MCTS(game=game, model=model, args=args)
+    root = mcts.run(model=model, state=board_for_player, to_play=1)
+
+    action = root.select_action(temperature=0)
+    return action
