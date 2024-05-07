@@ -67,9 +67,9 @@ class Connect2Model(L.LightningModule):
         self, batch, batch_idx
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         inputs, target_policy, target_value = batch
-        pred_policy, pred_output = self(inputs)
+        pred_policy, pred_value = self(inputs)
         policy_loss = self.get_policy_loss(pred_policy, target_policy)
-        value_loss = self.get_value_loss(pred_output, target_value.view(-1, 1))
+        value_loss = self.get_value_loss(pred_value, target_value.view(-1, 1))
         loss = policy_loss + value_loss
         return policy_loss, value_loss, loss
 

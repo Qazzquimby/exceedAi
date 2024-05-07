@@ -1,6 +1,9 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as func
+
+import lightning as L
 from lightning.pytorch.utilities.types import STEP_OUTPUT
 
 from connect4.connect4game import Connect4Game
@@ -8,7 +11,7 @@ from connect4.connect4game import Connect4Game
 FULLY_CONNECTED_SIZE = 16
 
 
-class Connect4Model(nn.Module):
+class Connect4Model(L.LightningModule):
     def __init__(self):
         super().__init__()
         self.game_cls = Connect4Game
@@ -63,8 +66,22 @@ class Connect4Model(nn.Module):
         self, batch, batch_idx
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         inputs, target_policy, target_value = batch
-        pred_policy, pred_output = self(inputs)
+        pred_policy, pred_value = self(inputs.view(-1, self.game_cls.size))
         policy_loss = self.get_policy_loss(pred_policy, target_policy)
-        value_loss = self.get_value_loss(pred_output, target_value.view(-1, 1))
+        value_loss = self.get_value_loss(pred_value, target_value.view(-1, 1))
         loss = policy_loss + value_loss
         return policy_loss, value_loss, loss
+
+    def predict(self, state):
+        state = (
+            torch.FloatTensor(state.astype(np.float32))
+            .to(self.device)
+            .view(1, self.game_cls.size)
+        )
+        self.eval()
+        with torch.no_grad():
+            policy_raw, value_raw = self.forward(state)
+
+        policy = policy_raw.data.cpu().numpy()[0]
+        value = value_raw.data.cpu().numpy()[0]
+        return policy, value

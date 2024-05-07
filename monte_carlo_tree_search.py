@@ -1,6 +1,8 @@
 import math
 import numpy as np
 
+from core import DEBUG
+
 
 def ucb_score(parent, child):
     """
@@ -122,7 +124,12 @@ class MCTS:
         action_probs = self.game.mask_invalid_moves(state, action_probs)
         root.expand(state, to_play, action_probs)
 
-        for _simulation in range(self.args["num_simulations"]):
+        if DEBUG:
+            num_simulations = 2
+        else:
+            num_simulations = self.args["num_simulations"]
+
+        for _simulation in range(num_simulations):
             node = root
             search_path = [node]
 
@@ -158,3 +165,23 @@ class MCTS:
             backpropagate(search_path, value, parent.to_play * -1)
 
         return root
+
+
+def model_select_action(model, state, game):
+    policy, _ = model.predict(state)
+
+    legal_moves = game.get_valid_moves(state)
+    policy = policy * legal_moves
+    policy = policy / np.sum(policy)
+
+    choice = np.random.choice(len(policy), p=policy)
+    return choice
+
+
+def mcts_select_action(model, board_for_player, game, args):
+    # todo, want to keep mcts states with hash to avoid recomputation
+    mcts = MCTS(game=game, model=model, args=args)
+    root = mcts.run(model=model, state=board_for_player, to_play=1)
+
+    action = root.select_action(temperature=0)
+    return action

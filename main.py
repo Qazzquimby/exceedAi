@@ -2,7 +2,7 @@ from connect2.connect2game import Connect2Game
 from connect2.connect2model import Connect2Model
 from connect4.connect4game import Connect4Game
 from connect4.connect4model import Connect4Model
-from core import checkpoints_dir
+from core import checkpoints_dir, DEBUG
 from trainer import TrainLoopManager, load_checkpoint
 
 batch_size = 16
@@ -110,8 +110,10 @@ def player_vs_model(game_name, run_name=None):
 
 
 def main():
-    game_name = "connect2"
-    run_name = None
+    game_name = "connect4"
+    run_name = ""
+    if DEBUG:
+        run_name += "_debug"
     train(game_name=game_name, run_name=run_name)
     watch(game_name=game_name, run_name=run_name)
     player_vs_model(game_name=game_name, run_name=run_name)

@@ -8,7 +8,8 @@ from torch.utils.data import DataLoader, random_split
 import lightning as L
 from tqdm import tqdm
 
-from core import checkpoints_dir, Game
+from core import checkpoints_dir, DEBUG
+from game import Game
 from monte_carlo_tree_search import MCTS
 
 MAX_TRAIN_EXAMPLES = 5_000
@@ -27,6 +28,7 @@ class TrainLoopManager:
         self.model = model
         self.args = args
         self.mcts = MCTS(self.game, self.model, self.args)
+        # todo right now this is always overwritten
 
         self.trainer = L.Trainer(
             max_epochs=self.args["epochs"],
@@ -34,28 +36,71 @@ class TrainLoopManager:
             enable_model_summary=False,
         )
 
+        if DEBUG:
+            self.trainer = L.Trainer(
+                max_epochs=2,
+                log_every_n_steps=1,
+                fast_dev_run=True,
+                detect_anomaly=True,
+            )
+
     def run_train_loop(self, start_iter=1):
         train_examples = load_train_examples(self.game)
 
-        for play_session in range(start_iter + 1, self.args["numIters"] + 1):
+        if DEBUG:
+            max_iterations = 2
+        else:
+            max_iterations = self.args["numIters"]
+
+        for play_session in range(start_iter + 1, start_iter + max_iterations + 1):
             train_examples += self.run_self_play()
             train_examples = train_examples[-MAX_TRAIN_EXAMPLES:]
             save_train_examples(self.game, train_examples)
 
             avg_moves_per_game = sum(
-                [len(history) for history in train_examples]
+                [len(history[0]) for history in train_examples]
             ) / len(train_examples)
             print(f"Avg Moves: {avg_moves_per_game:.3f}")
 
-            self.fit_on_histories(train_examples)
+            self.fit_and_evaluate(train_examples)
 
-    def fit_on_histories(self, train_examples):
-        # rename
+    def fit_and_evaluate(self, train_examples):
         dataset = torch.utils.data.TensorDataset(
             torch.FloatTensor(np.array([i[0] for i in train_examples])),
             torch.FloatTensor(np.array([i[1] for i in train_examples])),
             torch.FloatTensor(np.array([i[2] for i in train_examples])),
         )
+
+        best_new_model = self.fit_multiple(dataset=dataset)
+
+        frac_wins = self.game.auto_play(
+            player1=best_new_model, player2=self.model, args=self.args, num_games=20
+        )
+
+        if frac_wins > 0.5:
+            print(f"Accepting new model: {frac_wins}")
+            save_checkpoint(
+                model=self.model,
+                game=self.game,
+                filename=f"best_model",
+            )
+            self.model = best_new_model
+        else:
+            print(f"Rejecting new model: {frac_wins}")
+
+    def fit_multiple(self, dataset, attempts=4):
+        best_val_loss = np.inf
+        best_new_model = None
+        for _ in range(attempts):
+            print(f"Training attempt {_}/{attempts}")
+            new_model = self.fit_single(dataset)
+            val_loss = self.trainer.logged_metrics.get("val/loss", 9999)
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_new_model = new_model
+        return best_new_model
+
+    def fit_single(self, dataset):
         validation_frac = 0.1
         train_set, validation_set = random_split(
             dataset,
@@ -77,32 +122,23 @@ class TrainLoopManager:
         new_model = self.model.__class__()
         new_model.load_state_dict(self.model.state_dict())
 
+        new_model.train()
         # todo consider training multiple models and taking the one with lowest val/loss
         self.trainer.fit(new_model, train_loader, validation_loader)
-
-        frac_wins = self.game.auto_play(
-            player1=new_model, player2=self.model, args=self.args, num_games=20
-        )
-
-        if frac_wins > 0.5:
-            print(f"Accepting new model: {frac_wins}")
-            save_checkpoint(
-                model=self.model,
-                game=self.game,
-                filename=f"best_model",
-            )
-            self.model = new_model
-        else:
-            print(f"Rejecting new model: {frac_wins}")
+        return new_model
 
     def run_self_play(self):
         train_examples = []
         self.model.eval()
-        for _game in tqdm(
-            range(self.args["numEps"]), desc="Game", position=1, leave=False
-        ):
-            iteration_train_examples = self.run_training_game()
-            train_examples.extend(iteration_train_examples)
+
+        if DEBUG:
+            num_games = 2
+        else:
+            num_games = self.args["numEps"]
+        with torch.no_grad():
+            for _game in tqdm(range(num_games), desc="Game", position=1, leave=False):
+                iteration_train_examples = self.run_training_game()
+                train_examples.extend(iteration_train_examples)
         return train_examples
 
     def run_training_game(self):
@@ -120,7 +156,7 @@ class TrainLoopManager:
                 self.model, board_from_current_player_perspective, to_play=1
             )
 
-            action_probs = [0 for _ in range(self.game.size)]
+            action_probs = [0 for _ in range(self.game.action_size)]
             for k, v in root.children.items():
                 action_probs[k] = v.visit_count
                 # you use the highest visit count, not value,

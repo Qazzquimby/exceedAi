@@ -1,6 +1,6 @@
 import numpy as np
 
-from core import Game
+from game import Game
 
 
 class Connect4Game(Game):
