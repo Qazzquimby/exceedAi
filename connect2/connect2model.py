@@ -24,7 +24,6 @@ class Connect2Model(L.LightningModule):
         self.fully_connected_2 = nn.Linear(
             in_features=FULLY_CONNECTED_SIZE, out_features=FULLY_CONNECTED_SIZE
         )
-        # "cross entropy loss" to train from MCTS
 
         self.action_head = nn.Linear(
             in_features=FULLY_CONNECTED_SIZE, out_features=self.game_cls.action_size
@@ -89,19 +88,22 @@ class Connect2Model(L.LightningModule):
 
         return policy.data.cpu().numpy()[0], value.data.cpu().numpy()[0]
 
-    def select_action(self, state, game):
-        policy, _ = self.predict(state)
 
-        legal_moves = game.get_valid_moves(state)
-        policy = policy * legal_moves
-        policy = policy / np.sum(policy)
+def select_action(model, state, game):
+    policy, _ = model.predict(state)
 
-        choice = np.random.choice(len(policy), p=policy)
-        return choice
+    legal_moves = game.get_valid_moves(state)
+    policy = policy * legal_moves
+    policy = policy / np.sum(policy)
 
-    def select_action_from_sim(self, board_for_player, game, args):
-        self.mcts = MCTS(game=game, model=self, args=args)
-        root = self.mcts.run(model=self, state=board_for_player, to_play=1)
+    choice = np.random.choice(len(policy), p=policy)
+    return choice
 
-        action = root.select_action(temperature=0)
-        return action
+
+def select_action_from_sim(model, board_for_player, game, args):
+    # todo, want to keep mcts states with hash to avoid recomputation
+    mcts = MCTS(game=game, model=model, args=args)
+    root = mcts.run(model=model, state=board_for_player, to_play=1)
+
+    action = root.select_action(temperature=0)
+    return action

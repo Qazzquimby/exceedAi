@@ -1,9 +1,10 @@
 import abc
-import random
 from pathlib import Path
 from pprint import pprint
 
 import numpy as np
+
+from connect2.connect2model import select_action_from_sim
 
 checkpoints_dir = Path("checkpoints")
 
@@ -102,8 +103,11 @@ class Game(abc.ABC):
             if current_player_model is None:
                 action = int(input("Enter your move: "))
             else:
-                action = current_player_model.select_action_from_sim(
-                    board_for_player, game=self, args=args
+                action = select_action_from_sim(
+                    model=current_player_model,
+                    board_for_player=board_for_player,
+                    game=self,
+                    args=args,
                 )
 
             state, next_player = self.get_next_state(state, current_player, action)

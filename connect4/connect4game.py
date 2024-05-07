@@ -8,6 +8,7 @@ class Connect4Game(Game):
 
     rows = 6
     columns = 7
+    size = rows * columns
     action_size = columns
     win = 4
 
