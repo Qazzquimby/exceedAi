@@ -1,4 +1,5 @@
 import pickle
+import random
 
 import numpy as np
 
@@ -178,33 +179,23 @@ class TrainLoopManager:
             reward = self.game.get_reward_for_player(state, current_player)
 
             if reward is not None:
-                ret = []
+                history = []
                 for (
                     hist_state,
                     hist_current_player,
                     hist_action_probs,
                 ) in train_examples:
-
-                    old_version = reward * (
-                        (-1) ** (hist_current_player != current_player)
-                    )
-                    # todo remove
-
                     if hist_current_player != current_player:
                         reward *= -1
 
-                    assert old_version == reward
-
-                    ret.append(
+                    history.append(
                         (
                             hist_state,
                             hist_action_probs,
-                            reward * ((-1) ** (hist_current_player != current_player)),
+                            reward,
                         )
                     )
-                    # TODO could just be multiplied by 1 or -1?
-
-                return ret
+                save_history(game_name=self.game.name, history=history)
 
 
 def save_checkpoint(model, game: Game, filename: str):
@@ -245,3 +236,29 @@ def save_train_examples(game, train_examples):
     path = get_train_examples_path(game)
     path.parent.mkdir(parents=True, exist_ok=True)
     pickle.dump(train_examples, open(get_train_examples_path(game), "wb"))
+
+
+run_number = None
+
+
+def save_history(game_name: str, history):
+    global run_number
+    if run_number is None:
+        run_folders = (checkpoints_dir / game_name).glob("run_*")
+        run_numbers = [int(str(f).split("_")[-1]) for f in run_folders]
+        if run_numbers:
+            run_number = max(run_numbers) + 1
+        else:
+            run_number = 0
+
+    if len(history):
+        rand_hash = random.getrandbits(16)
+        path = (
+            checkpoints_dir
+            / game_name
+            / f"run_{run_number}"
+            / "histories"
+            / f"{rand_hash}.pkl"
+        )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        pickle.dump(history, open(path, "wb"))
