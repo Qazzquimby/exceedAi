@@ -31,6 +31,8 @@ class Connect4Model(L.LightningModule):
         self.get_policy_loss = nn.CrossEntropyLoss()
         self.get_value_loss = nn.MSELoss()
 
+        self.val_loss = 9999
+
     def forward(self, x) -> tuple[torch.Tensor, torch.Tensor]:
         assert x.shape[1] == self.game_cls.size
         x = func.relu(self.fully_connected_1(x))
@@ -60,6 +62,7 @@ class Connect4Model(L.LightningModule):
         self.log("val/loss", loss)
         self.log("val/policy_loss", policy_loss)
         self.log("val/value_loss", value_loss)
+        self.val_loss = loss
         return loss
 
     def _step(

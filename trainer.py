@@ -28,7 +28,7 @@ class TrainLoopManager:
         self.model = model
         self.args = args
         self.mcts = MCTS(self.game, self.model, self.args)
-        # todo right now this is always overwritten
+        # todo right now mcts is always overwritten
 
         self.trainer = L.Trainer(
             max_epochs=self.args["epochs"],
@@ -57,11 +57,6 @@ class TrainLoopManager:
             train_examples = train_examples[-MAX_TRAIN_EXAMPLES:]
             save_train_examples(self.game, train_examples)
 
-            avg_moves_per_game = sum(
-                [len(history[0]) for history in train_examples]
-            ) / len(train_examples)
-            print(f"Avg Moves: {avg_moves_per_game:.3f}")
-
             self.fit_and_evaluate(train_examples)
 
     def fit_and_evaluate(self, train_examples):
@@ -73,30 +68,39 @@ class TrainLoopManager:
 
         best_new_model = self.fit_multiple(dataset=dataset)
 
-        frac_wins = self.game.auto_play(
-            player1=best_new_model, player2=self.model, args=self.args, num_games=20
-        )
+        self_play_evaluation = False
 
-        if frac_wins > 0.5:
-            print(f"Accepting new model: {frac_wins}")
-            save_checkpoint(
-                model=self.model,
-                game=self.game,
-                filename=f"best_model",
+        if self_play_evaluation:
+            frac_wins = self.game.auto_play(
+                player1=best_new_model, player2=self.model, args=self.args, num_games=20
             )
-            self.model = best_new_model
-        else:
-            print(f"Rejecting new model: {frac_wins}")
 
-    def fit_multiple(self, dataset, attempts=4):
-        best_val_loss = np.inf
+            if frac_wins >= 0.5:
+                print(f"Accepting new model: {frac_wins}")
+                save_checkpoint(
+                    model=self.model,
+                    game=self.game,
+                    filename=f"best_model",
+                )
+                self.model = best_new_model
+            else:
+                print(f"Rejecting new model: {frac_wins}")
+        else:
+            if best_new_model.val_loss < self.model.val_loss:
+                print(f"Accepting new model: {best_new_model.val_loss}")
+                save_checkpoint(
+                    model=self.model,
+                    game=self.game,
+                    filename=f"best_model",
+                )
+                self.model = best_new_model
+
+    def fit_multiple(self, dataset, attempts=1):
         best_new_model = None
         for _ in range(attempts):
-            print(f"Training attempt {_}/{attempts}")
             new_model = self.fit_single(dataset)
-            val_loss = self.trainer.logged_metrics.get("val/loss", 9999)
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            print(f"Training attempt {_}/{attempts} - val/loss: {new_model.val_loss}")
+            if not best_new_model or new_model.val_loss < best_new_model.val_loss:
                 best_new_model = new_model
         return best_new_model
 

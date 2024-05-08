@@ -2,6 +2,7 @@ import abc
 from pprint import pprint
 
 import numpy as np
+from tqdm import tqdm
 
 from monte_carlo_tree_search import mcts_select_action
 
@@ -51,7 +52,9 @@ class Game(abc.ABC):
 
     def auto_play(self, player1, player2, args, num_games=5, should_print=False):
         winners = []
-        for game_num in range(num_games):
+        for game_num in tqdm(
+            range(num_games), desc="Eval Game", position=1, leave=False
+        ):
             player1_goes_first = game_num % 2 == 0
             winner = self.auto_play_game(
                 player1,
@@ -61,7 +64,9 @@ class Game(abc.ABC):
                 player1_goes_first=player1_goes_first,
             )
             winners.append(winner)
-        frac_player_1_wins = winners.count(1) / num_games
+        player_1_score = winners.count(1)
+        player_2_score = winners.count(-1)
+        frac_player_1_wins = winners.count(1) / (player_1_score + player_2_score)
         if should_print:
             print(f"Player 1 wins: {winners.count(1)}, {frac_player_1_wins*100}%")
             print(f"Player -1 wins: {winners.count(-1)}, {(1-frac_player_1_wins)*100}%")
@@ -101,6 +106,7 @@ class Game(abc.ABC):
                     board_for_player=board_for_player,
                     game=self,
                     args=args,
+                    temperature=0.1,
                 )
 
             state, next_player = self.get_next_state(state, current_player, action)
