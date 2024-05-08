@@ -180,10 +180,10 @@ def model_select_action(model, state, game):
     return choice
 
 
-def mcts_select_action(model, board_for_player, game, args):
+def mcts_select_action(model, board_for_player, game, args, temperature=0.0):
     # todo, want to keep mcts states with hash to avoid recomputation
     mcts = MCTS(game=game, model=model, args=args)
     root = mcts.run(model=model, state=board_for_player, to_play=1)
 
-    action = root.select_action(temperature=0)
+    action = root.select_action(temperature=temperature)
     return action
